@@ -906,3 +906,43 @@ def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
             image, output_shape,
             order=order, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range)
+
+
+# ----------------------------------------------------------------------------------------- #
+# ------------------- Merge detections from the same class that overlap --------------------#
+def merge(r):
+    """
+    Merge overlapped masks.
+    This function returns a new bounding box and a new mask covering all the overlapped masks.
+
+    r: the results from one detection in the inference mode
+    A list of dicts, one dict per image. The dict contains:
+    rois: [N, (y1, x1, y2, x2)] detection bounding boxes
+    class_ids: [N] int class IDs
+    scores: [N] float probability scores for the class IDs
+    masks: [H, W, N] instance binary masks
+    """
+    i = 0
+    #n = 1
+    while i < r['masks'].shape[-1]:
+        intersection = False
+        n = i + 1
+        class_id = r['class_ids'][i]
+        while n < r['masks'].shape[-1]:
+            # if class_id == r['class_ids'][n]: # uncomment the condition if you want different classes to be separated
+            # dont forget to add an indent to the following
+            c = np.logical_and(r['masks'][:, :, i], r['masks'][:, :, n])
+            if np.any(c):
+                r['masks'][:, :, i] = np.logical_or(r['masks'][:, :, i], r['masks'][:, :, n])
+                r['class_ids'] = np.delete(r['class_ids'], n, 0)
+                r['scores'] = np.delete(r['scores'], n, 0)
+                r['masks'] = np.delete(r['masks'], n, 2)
+                r['scores'][i] = 1
+                r['rois'] = extract_bboxes(r['masks'])
+                intersection = True
+            # end of the condition
+            n += 1
+        if intersection == False:
+            i += 1
+    return r
+
